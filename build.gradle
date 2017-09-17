@@ -1,0 +1,117 @@
+apply plugin: 'base'
+
+import static groovy.io.FileType.FILES
+
+group = 'com.github.stephen-fox'
+version = externalVersion
+
+File sourcesDir = file(projectDir.absolutePath + '/command')
+
+task setupGoLibraries(type: Task) {
+    description 'Sets up the required Go libraries.'
+    group 'build setup'
+    doLast {
+        logger.quiet('Setting up "gox" for Go cross compilation...')
+        exec {
+            commandLine 'go', 'get', 'github.com/mitchellh/gox'
+        }
+        logger.quiet('Successfully setup gox')
+        logger.quiet('Setting up "archiver" library for compression functionality...')
+        exec {
+            commandLine 'go', 'get', 'github.com/mholt/archiver/cmd/archiver'
+        }
+        logger.quiet('Successfully setup archiver')
+        logger.quiet('Setting up "cabinet" library for file utilities...')
+        exec {
+            commandLine 'go', 'get', 'github.com/stephen-fox/cabinet'
+        }
+        logger.quiet('Successfully setup cabinet')
+    }
+}
+
+task buildApplication(type: Task) {
+    description 'Builds the application.'
+    group 'build'
+    doLast {
+        buildDir.mkdirs()
+        String outputFormat = '-output=' + buildDir.absolutePath + '/' + project.name
+        exec {
+            workingDir sourcesDir
+            commandLine 'gox', outputFormat + '-macos', '-osarch', 'darwin/amd64'
+        }
+        exec {
+            workingDir sourcesDir
+            commandLine 'gox', outputFormat + '-windows-{{.Arch}}', '-os', 'windows'
+        }
+        def osName = System.getProperty('os.name').toLowerCase()
+        if (!osName.contains('windows')) {
+            if (markBinariesAsExecutable(project.name + '-', buildDir) > 0) {
+                throw new GradleException('Failed to set binaries as executable')
+            }
+        }
+    }
+}
+
+task buildApplicationCurrentOs(type: Task) {
+    description 'Builds the application for the current OS.'
+    group 'build'
+    doLast {
+        String targetOs = ''
+        String targetArch = ''
+        String osName = System.getProperty('os.name').toLowerCase()
+        if (osName.contains('linux')) {
+            targetOs = 'linux'
+            targetArch = 'amd64'
+        } else if (osName.contains('mac')) {
+            targetOs = 'darwin'
+            targetArch = 'amd64'
+        } else if (osName.contains('windows')) {
+            targetOs = 'windows'
+            targetArch = 'amd64'
+        }
+        if (goxCompile(sourcesDir, buildDir, project.name, targetOs, targetArch) > 0) {
+            throw new GradleException('Failed to compile the application')
+        }
+        if (targetOs != 'windows') {
+            if (markBinariesAsExecutable(project.name + '-', buildDir) > 0) {
+                throw new GradleException('Failed to set binaries as executable')
+            }
+        }
+    }
+}
+
+int goxCompile(File sourcesDir, File outputDir, String binaryName, String os, String arch) {
+    List<String> command = ['gox']
+    if (arch?.trim()) {
+        command.add('-osarch')
+        command.add(os + '/' + arch)
+    } else {
+        command.add('-os')
+        command.add(os)
+    }
+    command.add('-output=' + outputDir.absolutePath + File.separator + binaryName)
+    logger.quiet('Executing gox: ' + command.toString() + '...')
+    return exec {
+        workingDir sourcesDir
+        commandLine command
+    }.exitValue
+}
+
+int markBinariesAsExecutable(String nameMatch, File directory) {
+    int exitValue = 0
+    String osName = System.getProperty('os.name').toLowerCase()
+    if (osName.contains('linux') || osName.contains('mac')) {
+        directory.eachFileRecurse(FILES) {
+            File someFile = file(it)
+            if (someFile.name.contains(nameMatch)) {
+                exitValue = exec {
+                    commandLine 'chmod', '-v', '+x', someFile.absolutePath
+                }.exitValue
+            }
+        }
+    } else if (osName.contains('windows')) {
+        logger.quiet('[WARN] Unable to set Linux and macOS binaries as executable')
+    }
+
+    return exitValue
+}

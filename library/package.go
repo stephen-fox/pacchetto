@@ -19,9 +19,9 @@ const (
 	archiveFileName = "ac-server.zip"
 )
 
-var driveLetters = [...]string{
-	"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o",
-	"p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z",
+var windowsDriveLetters = [...]string{
+	"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O",
+	"P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
 }
 
 var contentSubPaths = [...]string{
@@ -31,12 +31,12 @@ var contentSubPaths = [...]string{
 // PackageAssettoCorsaServer creates an archive in the specified destination
 // that contains the files required to run an Assetto Corsa dedicated server.
 func PackageAssettoCorsaServer(archiveParentPath string) (archivePath string, err error) {
-	acPath, err := getAssettoCorsaPath()
+	acPath, err := GetAssettoCorsaPath()
 	if err != nil {
 		return "", err
 	}
 
-	tempDirPath, err := ioutil.TempDir("", "pacchetto")
+	tempDirPath, err := ioutil.TempDir("", "pacchetto.")
 	if err != nil {
 		return "", errors.New("Failed to create temporary directory")
 	}
@@ -54,7 +54,7 @@ func PackageAssettoCorsaServer(archiveParentPath string) (archivePath string, er
 			return "", errors.New("Assetto Corsa content directory '" + path +
 				"' does not exist")
 		}
-		err := cabinet.CopyDirectory(path, serverStagingPath+"/content")
+		err := cabinet.CopyDirectory(path, serverStagingPath+"/content/"+subPath)
 		if err != nil {
 			return "", errors.New("Failed to stage '" + path + "'")
 		}
@@ -72,25 +72,34 @@ func PackageAssettoCorsaServer(archiveParentPath string) (archivePath string, er
 	return fullDestinationPath, nil
 }
 
-func getAssettoCorsaPath() (string, error) {
+// GetAssettoCorsaPath returns the path to the Assetto Corsa installation
+// directory.
+func GetAssettoCorsaPath() (string, error) {
 	path := ""
 	switch operatingSystem := runtime.GOOS; operatingSystem {
 	case "darwin":
 		path = os.Getenv("HOME") + "/Library/Application Support/Steam/" + acSubPath
+		if cabinet.Exists(path) {
+			return path, nil
+		}
 	case "linux":
 		return "", errors.New("Linux is not currently supported :(")
 	case "windows":
 		subPath := ":/Program Files (x86)/Steam/" + acSubPath
-		for _, l := range driveLetters {
+		for _, l := range windowsDriveLetters {
+			// Because certain drives may report that any file exists (such
+			// as CD drives), we need to try writing to it first.
+			junk := l + ":/.pacchetto"
+			_, err := os.Create(junk)
+			if err != nil {
+				continue
+			}
+			os.Remove(junk)
 			path = l + subPath
 			if cabinet.Exists(path) {
-				break
+				return path, nil
 			}
 		}
-	}
-
-	if cabinet.Exists(path) {
-		return path, nil
 	}
 
 	return "", errors.New("Failed to locate Assetto Corsa directory")

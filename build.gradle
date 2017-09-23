@@ -1,5 +1,4 @@
 apply plugin: 'base'
-
 import static groovy.io.FileType.FILES
 
 group = 'com.github.stephen-fox'
@@ -26,11 +25,16 @@ task setupGoLibraries(type: Task) {
             commandLine 'go', 'get', 'github.com/stephen-fox/cabinet'
         }
         logger.quiet('Successfully setup cabinet')
+        logger.quiet('Setting up "logi" library for logging...')
+        exec {
+            commandLine 'go', 'get', 'github.com/stephen-fox/logi'
+        }
+        logger.quiet('Successfully setup logi')
     }
 }
 
 task buildApplication(type: Task) {
-    description 'Builds the application.'
+    description 'Builds the application for all supported OSes.'
     group 'build'
     doLast {
         buildDir.mkdirs()

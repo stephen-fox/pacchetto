@@ -8,40 +8,48 @@ import (
 
 	"github.com/mholt/archiver"
 	"github.com/stephen-fox/cabinet"
+	"github.com/stephen-fox/logi"
 )
 
 const (
-	acSubPath       = "steamapps/common/assettocorsa"
-	serverSubPath   = "server"
-	tracksSubPath   = "content/tracks"
-	carsSubPath     = "content/cars"
-	weatherSubPath  = "content/weather"
-	archiveFileName = "ac-server.zip"
+	acSubPath      = "steamapps/common/assettocorsa"
+	contentSubPath = "content"
+	serverSubPath  = "server"
+	tracksSubPath  = "tracks"
+	carsSubPath    = "cars"
+	weatherSubPath = "weather"
+	outputPrefix   = "assetto-corsa-server"
+	tempPrefix     = ".pacchetto"
 )
+
+var contentSubPaths = [...]string{
+	tracksSubPath, carsSubPath, weatherSubPath,
+}
 
 var windowsDriveLetters = [...]string{
 	"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O",
 	"P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
 }
 
-var contentSubPaths = [...]string{
-	tracksSubPath, carsSubPath, weatherSubPath,
-}
-
-// PackageAssettoCorsaServer creates an archive in the specified destination
-// that contains the files required to run an Assetto Corsa dedicated server.
-func PackageAssettoCorsaServer(archiveParentPath string) (archivePath string, err error) {
+// CreatePhatPackage creates a single archive in the specified parent
+// directory that contains all of the files required to run an Assetto Corsa
+// dedicated server. Optionally, the caller may override the parent path of
+// the staging directory.
+func CreatePhatPackage(parentDirPath string, stagingPathOverride string) (archivePath string, err error) {
 	acPath, err := GetAssettoCorsaPath()
 	if err != nil {
 		return "", err
 	}
 
-	tempDirPath, err := ioutil.TempDir("", "pacchetto.")
+	// If the staging path override is not specified, then the OS' temp dir is
+	// used instead.
+	tempDirPath, err := ioutil.TempDir(stagingPathOverride, tempPrefix+".")
 	if err != nil {
 		return "", errors.New("Failed to create temporary directory")
 	}
 	defer os.RemoveAll(tempDirPath)
 
+	logi.Info.Println("Staging server files...")
 	serverStagingPath := tempDirPath + "/" + serverSubPath
 	err = cabinet.CopyDirectory(acPath+"/"+serverSubPath, serverStagingPath)
 	if err != nil {
@@ -49,27 +57,85 @@ func PackageAssettoCorsaServer(archiveParentPath string) (archivePath string, er
 	}
 
 	for _, subPath := range contentSubPaths {
-		path := acPath + "/" + subPath
+		path := acPath + "/content/" + subPath
 		if !cabinet.Exists(path) {
 			return "", errors.New("Assetto Corsa content directory '" + path +
 				"' does not exist")
 		}
+		logi.Info.Println("Staging content", path, "...")
 		err := cabinet.CopyDirectory(path, serverStagingPath+"/content/"+subPath)
 		if err != nil {
 			return "", errors.New("Failed to stage '" + path + "'")
 		}
 	}
 
+	logi.Info.Println("Creating package...")
 	archiveDirs := []string{
 		serverStagingPath,
 	}
-	fullDestinationPath := archiveParentPath + "/" + archiveFileName
+	fullDestinationPath := parentDirPath + "/" + outputPrefix + ".zip"
 	err = archiver.Zip.Make(fullDestinationPath, archiveDirs)
 	if err != nil {
 		return "", err
 	}
 
+	logi.Info.Println("Successfully created server package")
 	return fullDestinationPath, nil
+}
+
+// CreateDistributedPackages creates an archive for each Assetto Corsa
+// "content" type that is needed to run an Assetto Corsa dedicated server.
+// This results in several smaller archives, which might be preferable over a
+// single "phat" archive in certain situations.
+func CreateDistributedPackages(archivesParentPath string) (archivesPath string, err error) {
+	acPath, err := GetAssettoCorsaPath()
+	if err != nil {
+		return "", err
+	}
+
+	destinationPath := archivesParentPath + "/" + outputPrefix
+	err = os.MkdirAll(destinationPath, 0644)
+	if err != nil {
+		return "", err
+	}
+
+	logi.Info.Println("Creating server files package...")
+	serverArchivePath := destinationPath + "/server.zip"
+	archiveTarget := []string{
+		acPath + "/" + serverSubPath,
+	}
+	err = archiver.Zip.Make(serverArchivePath, archiveTarget)
+	if err != nil {
+		return "", err
+	}
+
+	contentDestination := destinationPath + "/" + contentSubPath
+	err = os.MkdirAll(contentDestination, 0644)
+	if err != nil {
+		return "", err
+	}
+
+	for _, subPath := range contentSubPaths {
+		path := acPath + "/" + contentSubPath + "/" + subPath
+		if !cabinet.Exists(path) {
+			return "", errors.New("Assetto Corsa content directory '" + path +
+				"' does not exist")
+		}
+
+		logi.Info.Println("Creating", path, "package...")
+
+		archiveTarget = []string{
+			path,
+		}
+		contentArchivePath := contentDestination + "/" + subPath + ".zip"
+		err = archiver.Zip.Make(contentArchivePath, archiveTarget)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	logi.Info.Println("Successfully created packages")
+	return destinationPath, nil
 }
 
 // GetAssettoCorsaPath returns the path to the Assetto Corsa installation
@@ -89,12 +155,13 @@ func GetAssettoCorsaPath() (string, error) {
 		for _, l := range windowsDriveLetters {
 			// Because certain drives may report that any file exists (such
 			// as CD drives), we need to try writing to it first.
-			junk := l + ":/.pacchetto"
-			_, err := os.Create(junk)
+			tempFilePath := l + ":/.pacchetto"
+			temp, err := os.Create(tempFilePath)
 			if err != nil {
 				continue
 			}
-			os.Remove(junk)
+			temp.Close()
+			os.Remove(temp.Name())
 			path = l + subPath
 			if cabinet.Exists(path) {
 				return path, nil

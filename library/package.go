@@ -11,26 +11,6 @@ import (
 	"github.com/stephen-fox/logi"
 )
 
-const (
-	acSubPath      = "steamapps/common/assettocorsa"
-	contentSubPath = "content"
-	serverSubPath  = "server"
-	tracksSubPath  = "tracks"
-	carsSubPath    = "cars"
-	weatherSubPath = "weather"
-	outputPrefix   = "assetto-corsa-server"
-	tempPrefix     = ".pacchetto"
-)
-
-var contentSubPaths = [...]string{
-	tracksSubPath, carsSubPath, weatherSubPath,
-}
-
-var windowsDriveLetters = [...]string{
-	"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O",
-	"P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
-}
-
 // CreatePhatPackage creates a single archive in the specified parent
 // directory that contains all of the files required to run an Assetto Corsa
 // dedicated server. Optionally, the caller may override the parent path of
@@ -38,7 +18,7 @@ var windowsDriveLetters = [...]string{
 func CreatePhatPackage(parentDirPath string, stagingPathOverride string) (archivePath string, err error) {
 	acPath, err := GetAssettoCorsaPath()
 	if err != nil {
-		return "", err
+		return "", err+
 	}
 
 	// If the staging path override is not specified, then the OS' temp dir is

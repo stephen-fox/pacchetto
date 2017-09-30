@@ -11,14 +11,14 @@ import (
 	"github.com/stephen-fox/logi"
 )
 
-// CreatePhatPackage creates a single archive in the specified parent
-// directory that contains all of the files required to run an Assetto Corsa
-// dedicated server. Optionally, the caller may override the parent path of
-// the staging directory.
-func CreatePhatPackage(parentDirPath string, stagingPathOverride string) (archivePath string, err error) {
+// CreatePackage creates a single archive in the specified parent directory
+// that contains all of the files required to run an Assetto Corsa dedicated
+// server. Optionally, the caller may override the parent path of the
+// staging directory.
+func CreatePackage(parentDirPath string, stagingPathOverride string) (archivePath string, err error) {
 	acPath, err := GetAssettoCorsaPath()
 	if err != nil {
-		return "", err+
+		return "", err
 	}
 
 	// If the staging path override is not specified, then the OS' temp dir is
@@ -31,7 +31,7 @@ func CreatePhatPackage(parentDirPath string, stagingPathOverride string) (archiv
 
 	logi.Info.Println("Staging server files...")
 	serverStagingPath := tempDirPath + "/" + serverSubPath
-	err = cabinet.CopyDirectory(acPath+"/"+serverSubPath, serverStagingPath)
+	err = cabinet.CopyDirectory(acPath+"/"+serverSubPath, serverStagingPath, true)
 	if err != nil {
 		return "", err
 	}
@@ -42,8 +42,15 @@ func CreatePhatPackage(parentDirPath string, stagingPathOverride string) (archiv
 			return "", errors.New("Assetto Corsa content directory '" + path +
 				"' does not exist")
 		}
+
 		logi.Info.Println("Staging content", path, "...")
-		err := cabinet.CopyDirectory(path, serverStagingPath+"/content/"+subPath)
+
+		err := cabinet.CopyFilesWithSuffix(path, serverStagingPath+"/content/"+subPath, ".ini", true)
+		if err != nil {
+			return "", errors.New("Failed to stage '" + path + "'")
+		}
+
+		err = cabinet.CopyFilesWithSuffix(path, serverStagingPath+"/content/"+subPath, ".acd", true)
 		if err != nil {
 			return "", errors.New("Failed to stage '" + path + "'")
 		}
@@ -61,61 +68,6 @@ func CreatePhatPackage(parentDirPath string, stagingPathOverride string) (archiv
 
 	logi.Info.Println("Successfully created server package")
 	return fullDestinationPath, nil
-}
-
-// CreateDistributedPackages creates an archive for each Assetto Corsa
-// "content" type that is needed to run an Assetto Corsa dedicated server.
-// This results in several smaller archives, which might be preferable over a
-// single "phat" archive in certain situations.
-func CreateDistributedPackages(archivesParentPath string) (archivesPath string, err error) {
-	acPath, err := GetAssettoCorsaPath()
-	if err != nil {
-		return "", err
-	}
-
-	destinationPath := archivesParentPath + "/" + outputPrefix
-	err = os.MkdirAll(destinationPath, 0644)
-	if err != nil {
-		return "", err
-	}
-
-	logi.Info.Println("Creating server files package...")
-	serverArchivePath := destinationPath + "/server.zip"
-	archiveTarget := []string{
-		acPath + "/" + serverSubPath,
-	}
-	err = archiver.Zip.Make(serverArchivePath, archiveTarget)
-	if err != nil {
-		return "", err
-	}
-
-	contentDestination := destinationPath + "/" + contentSubPath
-	err = os.MkdirAll(contentDestination, 0644)
-	if err != nil {
-		return "", err
-	}
-
-	for _, subPath := range contentSubPaths {
-		path := acPath + "/" + contentSubPath + "/" + subPath
-		if !cabinet.Exists(path) {
-			return "", errors.New("Assetto Corsa content directory '" + path +
-				"' does not exist")
-		}
-
-		logi.Info.Println("Creating", path, "package...")
-
-		archiveTarget = []string{
-			path,
-		}
-		contentArchivePath := contentDestination + "/" + subPath + ".zip"
-		err = archiver.Zip.Make(contentArchivePath, archiveTarget)
-		if err != nil {
-			return "", err
-		}
-	}
-
-	logi.Info.Println("Successfully created packages")
-	return destinationPath, nil
 }
 
 // GetAssettoCorsaPath returns the path to the Assetto Corsa installation

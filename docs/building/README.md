@@ -33,5 +33,5 @@ Execute the following on the command line:
 ## Building for the current operating system
 Execute the following on the command line:
 ```
-./gradlew buildApplicationCurrentOperatingSystem
+./gradlew buildApplicationCurrentOs
 ``` 

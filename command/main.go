@@ -11,20 +11,13 @@ import (
 	"github.com/stephen-fox/pacchetto/library"
 )
 
-type mode int
-
-const (
-	phat mode = iota
-	distributed
-)
-
 func main() {
 	if len(os.Args) == 1 {
 		displayHelp()
 		os.Exit(0)
 	}
 
-	mode, stagingOverride, err := getArguments()
+	shouldCreatePackage, stagingOverride, err := getArguments()
 	if err != nil {
 		fmt.Println(err.Error(), "- Re-run with the '-h' argument for more information")
 		os.Exit(1)
@@ -41,33 +34,25 @@ func main() {
 	}
 	destinationParentPath = destinationParentPath + "/Desktop"
 
-	if mode == distributed {
-		fmt.Println("Creating packages...")
-		path, err := pacchetto.CreateDistributedPackages(destinationParentPath)
-		if err != nil {
-			fmt.Println(err.Error())
-			os.Exit(1)
-		}
-		fmt.Println("Created packages at " + path)
-	} else if mode == phat {
+	if shouldCreatePackage {
 		fmt.Println("Creating package...")
-		path, err := pacchetto.CreatePhatPackage(destinationParentPath, stagingOverride)
+		path, err := pacchetto.CreatePackage(destinationParentPath, stagingOverride)
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
 		}
-		fmt.Println("Created package at " + path)
+		fmt.Println("Created package at '" + path + "'")
 	}
 }
 
-func getArguments() (mode mode, stagingOverride string, err error) {
+func getArguments() (shouldCreatePackage bool, stagingOverride string, err error) {
 	arguments := os.Args[1:]
 
 	if len(arguments) == 0 {
-		return 0, "", errors.New("You must specify an argument")
+		return false, "", errors.New("You must specify an argument")
 	}
 
-	// Super hack.
+	// Super hack to detect if the string is an option, or an argument.
 	var hasOption bool
 	for _, temp := range arguments {
 		if strings.HasPrefix(temp, "-") {
@@ -76,10 +61,9 @@ func getArguments() (mode mode, stagingOverride string, err error) {
 		}
 	}
 	if !hasOption {
-		return 0, "", errors.New("You must specify an option")
+		return false, "", errors.New("You must specify an option")
 	}
 
-	var hasMode bool
 	for i, argument := range arguments {
 		value := ""
 		if i < len(arguments)-1 {
@@ -98,28 +82,17 @@ func getArguments() (mode mode, stagingOverride string, err error) {
 			case "h":
 				displayHelp()
 				os.Exit(0)
-			case "m":
-				hasMode = true
-				if value == "distributed" || value == "d" {
-					mode = distributed
-				} else if value == "phat" || value == "p" {
-					mode = phat
-				} else {
-					return 0, "", errors.New("Mode " + value + " is invalid")
-				}
+			case "p":
+				shouldCreatePackage = true
 			case "s":
 				stagingOverride = value
 			default:
-				return 0, "", errors.New("Unknown option: '" + argument + "'")
+				return false, "", errors.New("Unknown option: '" + argument + "'")
 			}
 		}
 	}
 
-	if !hasMode {
-		return 0, "", errors.New("Missing 'mode' argument")
-	}
-
-	return mode, stagingOverride, nil
+	return shouldCreatePackage, stagingOverride, nil
 }
 
 func displayHelp() {
@@ -129,25 +102,21 @@ func displayHelp() {
 		"",
 		"Options:",
 		"    -h    Display this help page.",
-		"    -m    The mode flag. This can be set to 'distributed' or 'phat'.",
+		"    -p    Create a package.",
 		"    -s    The staging path override flag. This allows you to override the.",
-		"          temporaary directory where the 'phat' archive files are staged.",
-		"          This may be needed if your computer has limited storage space",
+		"          temporaary directory where files are staged.",
+		"          This is useful if your computer has limited storage space",
 		"          on the main disk.",
 		"",
 		"Examples:",
-		"    'pacchetto -m phat'",
+		"    'pacchetto -p'",
 		"    Create a single archive containing all the files needed to run an Assetto",
 		"    Corsa dedicated server.",
 		"",
-		"    'pacchetto -m phat -s E:/alternative/temp/dir'",
+		"    'pacchetto -p -s \"E:/alternative/temp/dir\"'",
 		"    Create a single archive containing all the files needed to run an Assetto",
 		"    Corsa dedicated server using an alternative directory for staging files.",
 		"",
-		"    'pacchetto -m distributed'",
-		"    Create several archives, each containing certain files required to run",
-		"    Assetto Corsa dedicated server. This may be preferable over a single",
-		"    massive archive file.",
 	}
 
 	lineEnding := "\n"

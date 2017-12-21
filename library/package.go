@@ -3,12 +3,12 @@ package pacchetto
 import (
 	"errors"
 	"io/ioutil"
+	"log"
 	"os"
 	"runtime"
 
 	"github.com/mholt/archiver"
 	"github.com/stephen-fox/cabinet"
-	"github.com/stephen-fox/logi"
 )
 
 // CreatePackage creates a single archive in the specified parent directory
@@ -29,7 +29,7 @@ func CreatePackage(parentDirPath string, stagingPathOverride string) (archivePat
 	}
 	defer os.RemoveAll(tempDirPath)
 
-	logi.Info.Println("Staging server files...")
+	log.Println("Staging server files...")
 	serverStagingPath := tempDirPath + "/" + serverSubPath
 	err = cabinet.CopyDirectory(acPath+"/"+serverSubPath, serverStagingPath, true)
 	if err != nil {
@@ -43,7 +43,7 @@ func CreatePackage(parentDirPath string, stagingPathOverride string) (archivePat
 				"' does not exist")
 		}
 
-		logi.Info.Println("Staging content", path, "...")
+		log.Println("Staging content", path, "...")
 
 		err := cabinet.CopyFilesWithSuffix(path, serverStagingPath+"/content/"+subPath, ".ini", true)
 		if err != nil {
@@ -56,7 +56,7 @@ func CreatePackage(parentDirPath string, stagingPathOverride string) (archivePat
 		}
 	}
 
-	logi.Info.Println("Creating package...")
+	log.Println("Creating package...")
 	archiveDirs := []string{
 		serverStagingPath,
 	}
@@ -66,7 +66,7 @@ func CreatePackage(parentDirPath string, stagingPathOverride string) (archivePat
 		return "", err
 	}
 
-	logi.Info.Println("Successfully created server package")
+	log.Println("Successfully created server package")
 	return fullDestinationPath, nil
 }
 

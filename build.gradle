@@ -15,21 +15,18 @@ task setupGoLibraries(type: Task) {
             commandLine 'go', 'get', 'github.com/mitchellh/gox'
         }
         logger.quiet('Successfully setup gox')
+
         logger.quiet('Setting up "archiver" library for compression functionality...')
         exec {
             commandLine 'go', 'get', 'github.com/mholt/archiver/cmd/archiver'
         }
         logger.quiet('Successfully setup archiver')
+
         logger.quiet('Setting up "cabinet" library for file utilities...')
         exec {
             commandLine 'go', 'get', 'github.com/stephen-fox/cabinet'
         }
         logger.quiet('Successfully setup cabinet')
-        logger.quiet('Setting up "logi" library for logging...')
-        exec {
-            commandLine 'go', 'get', 'github.com/stephen-fox/logi'
-        }
-        logger.quiet('Successfully setup logi')
     }
 }
 

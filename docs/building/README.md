@@ -21,7 +21,7 @@ In addition to the above tools, you will also need to acquire several Go
 libraries. This is automated via a Gradle task. To run this task, execute the
 following:
 ```
-./gradlew setupGoLibraries
+./gradlew setup
 ```
 
 ## Building for Linux, macOS, and Windows
@@ -33,5 +33,5 @@ Execute the following on the command line:
 ## Building for the current operating system
 Execute the following on the command line:
 ```
-./gradlew buildApplicationCurrentOs
+./gradlew buildApplication -Ptarget=darwin
 ``` 

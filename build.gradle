@@ -6,16 +6,10 @@ version = externalVersion
 
 File sourcesDir = file(projectDir.absolutePath + '/command')
 
-task setupGoLibraries(type: Task) {
+task setup(type: Task) {
     description 'Sets up the required Go libraries.'
     group 'build setup'
     doLast {
-        logger.quiet('Setting up "gox" for Go cross compilation...')
-        exec {
-            commandLine 'go', 'get', 'github.com/mitchellh/gox'
-        }
-        logger.quiet('Successfully setup gox')
-
         logger.quiet('Setting up "archiver" library for compression functionality...')
         exec {
             commandLine 'go', 'get', 'github.com/mholt/archiver/cmd/archiver'
@@ -31,69 +25,60 @@ task setupGoLibraries(type: Task) {
 }
 
 task buildApplication(type: Task) {
-    description 'Builds the application for all supported OSes.'
+    description 'Builds the application for all supported operating systems, or for a target OS using "-Ptarget".'
     group 'build'
     doLast {
-        buildDir.mkdirs()
-        String outputFormat = '-output=' + buildDir.absolutePath + '/' + project.name
-        exec {
-            workingDir sourcesDir
-            commandLine 'gox', outputFormat + '-macos', '-osarch', 'darwin/amd64'
-        }
-        exec {
-            workingDir sourcesDir
-            commandLine 'gox', outputFormat + '-windows-{{.Arch}}', '-os', 'windows'
-        }
-        def osName = System.getProperty('os.name').toLowerCase()
-        if (!osName.contains('windows')) {
+        List<String> ldFlags = ['-X main.version=' + version.toString(), '-s', '-w']
+
+        if ('' == target) {
+            if (goBuild(sourcesDir, buildDir, project.name + '-macos', 'darwin', 'amd64', ldFlags) > 0) {
+                throw new GradleException('Failed to compile the application for macOS')
+            }
+            if (goBuild(sourcesDir, buildDir, project.name + '-windows-amd64', 'windows', 'amd64', ldFlags) > 0) {
+                throw new GradleException('Failed to compile the application for Windows 64-bit')
+            }
+            if (goBuild(sourcesDir, buildDir, project.name + '-windows-386', 'windows', '386', ldFlags) > 0) {
+                throw new GradleException('Failed to compile the application for Windows 32-bit')
+            }
             if (markBinariesAsExecutable(project.name + '-', buildDir) > 0) {
                 throw new GradleException('Failed to set binaries as executable')
+            }
+        } else {
+            if (goBuild(sourcesDir, buildDir, project.name, target, 'amd64', ldFlags) > 0) {
+                throw new GradleException('Failed to compile the application for the current OS')
             }
         }
     }
 }
 
-task buildApplicationCurrentOs(type: Task) {
-    description 'Builds the application for the current OS.'
-    group 'build'
-    doLast {
-        String targetOs = ''
-        String targetArch = ''
-        String osName = System.getProperty('os.name').toLowerCase()
-        if (osName.contains('linux')) {
-            targetOs = 'linux'
-            targetArch = 'amd64'
-        } else if (osName.contains('mac')) {
-            targetOs = 'darwin'
-            targetArch = 'amd64'
-        } else if (osName.contains('windows')) {
-            targetOs = 'windows'
-            targetArch = 'amd64'
-        }
-        if (goxCompile(sourcesDir, buildDir, project.name, targetOs, targetArch) > 0) {
-            throw new GradleException('Failed to compile the application')
-        }
-        if (targetOs != 'windows') {
-            if (markBinariesAsExecutable(project.name + '-', buildDir) > 0) {
-                throw new GradleException('Failed to set binaries as executable')
-            }
-        }
-    }
-}
+int goBuild(File sourceCodeDir, File outputDir, String binaryName, String os, String arch, List<String> ldFlags) {
+    List<String> command = ['go', 'build']
 
-int goxCompile(File sourcesDir, File outputDir, String binaryName, String os, String arch) {
-    List<String> command = ['gox']
-    if (arch?.trim()) {
-        command.add('-osarch')
-        command.add(os + '/' + arch)
-    } else {
-        command.add('-os')
-        command.add(os)
+    if (!arch?.trim()) {
+        throw new GradleException('Please specify the target arch')
     }
-    command.add('-output=' + outputDir.absolutePath + File.separator + binaryName)
-    logger.quiet('Executing gox: ' + command.toString() + '...')
+
+    if (!os?.trim()) {
+        throw new GradleException('Please specify the target operating system')
+    }
+
+    if (!ldFlags?.isEmpty()) {
+        command.add('-ldflags')
+        command.add(ldFlags.join(' '))
+    }
+
+    command.add('-o')
+    String outputPath = outputDir.absolutePath + File.separator + binaryName
+    if (os == 'windows') {
+        outputPath = outputPath + ".exe"
+    }
+    command.add(outputPath)
+
+    logger.quiet('Compiling ' + sourceCodeDir.absolutePath + ' for ' + os + ', ' + arch + '...')
+
     return exec {
-        workingDir sourcesDir
+        environment GOARCH: arch, GOOS: os
+        workingDir sourceCodeDir.absolutePath
         commandLine command
     }.exitValue
 }

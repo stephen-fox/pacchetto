@@ -4,23 +4,24 @@ import static groovy.io.FileType.FILES
 group = 'com.github.stephen-fox'
 version = externalVersion
 
-File sourcesDir = file(projectDir.absolutePath + '/command')
+File sourcesDir = file(projectDir.absolutePath + '/cmd/' + project.name)
 
 task setup(type: Task) {
     description 'Sets up the required Go libraries.'
     group 'build setup'
     doLast {
-        logger.quiet('Setting up "archiver" library for compression functionality...')
-        exec {
-            commandLine 'go', 'get', 'github.com/mholt/archiver/cmd/archiver'
-        }
-        logger.quiet('Successfully setup archiver')
+        List<String> goPackages = [
+            'github.com/mholt/archiver/cmd/archiver',
+            'github.com/stephen-fox/cabinet'
+        ]
 
-        logger.quiet('Setting up "cabinet" library for file utilities...')
-        exec {
-            commandLine 'go', 'get', 'github.com/stephen-fox/cabinet'
+        for (String goPackage : goPackages) {
+            logger.quiet('Getting ' + goPackage + '...')
+            exec {
+                commandLine 'go', 'get', goPackage
+            }
+            logger.quiet('Got ' + goPackage)
         }
-        logger.quiet('Successfully setup cabinet')
     }
 }
 

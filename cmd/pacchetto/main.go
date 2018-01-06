@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/stephen-fox/pacchetto/library"
+	"github.com/stephen-fox/pacchetto"
 )
 
 const (

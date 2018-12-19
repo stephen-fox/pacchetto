@@ -1,4 +1,4 @@
-License for github.com/mholt/archiver:
+# github.com/mholt/archiver
 
 MIT License
 

@@ -1,3 +1,7 @@
-# Gradle files.
+# Gradle.
 .gradle
 build/
+
+# JetBrains.
+*.iml
+.idea/
